@@ -3,5 +3,5 @@ export type account = {
   name: string;
   amount: number;
   type: string;
-  creditLimit: number;
+  creditLimit: number | null;
 }

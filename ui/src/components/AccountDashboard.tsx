@@ -1,7 +1,6 @@
 import React, { useState } from "react"
 import {account} from "../Types/Account"
-import Paper from "@mui/material/Paper/Paper";
-import { Button, Card, CardContent, Grid, TextField } from "@mui/material";
+import { Button, Card, CardContent, Grid, Paper, TextField } from "@mui/material";
 
 type AccountDashboardProps = {
   account: account;

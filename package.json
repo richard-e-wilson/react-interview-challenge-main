@@ -1,0 +1,15 @@
+{
+  "name": "advisors-excel-react-challenge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root workspace runner for API and UI services",
+  "scripts": {
+    "test:docker": "docker compose run --rm --build api npm test && docker compose run --rm --build ui npm test -- --watchAll=false",
+    "test:docker:api": "docker compose run --rm --build api npm test",
+    "test:docker:ui": "docker compose run --rm --build ui npm test -- --watchAll=false",
+    "test:docker:coverage": "docker compose run --rm --build api npm test -- --coverage && docker compose run --rm --build ui npm test -- --coverage --watchAll=false",
+    "test:local": "npm test --prefix api && npm test --prefix ui -- --watchAll=false",
+    "test:local:api": "npm test --prefix api",
+    "test:local:ui": "npm test --prefix ui -- --watchAll=false"
+  }
+}

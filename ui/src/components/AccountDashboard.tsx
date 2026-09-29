@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Account, ApiError } from "../types";
+import { Account } from "../types";
 import { Button, Card, CardContent, Grid, Paper, TextField, Alert } from "@mui/material";
 import { apiService } from "../services/api";
 
@@ -59,6 +59,7 @@ export const AccountDashboard = (props: AccountDashboardProps) => {
                 label="Deposit Amount" 
                 variant="outlined" 
                 type="number"
+                inputProps={{ min: 1, max: 1000, step: 1 }}
                 sx={{
                   display: 'flex',
                   margin: 'auto',

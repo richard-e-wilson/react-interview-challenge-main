@@ -21,7 +21,10 @@ export interface Transaction {
 // Known starter error codes matching baseline application behavior
 export type KnownApiErrorCode =
   | 'INVALID_INPUT'
+  | 'INVALID_AMOUNT'
   | 'ACCOUNT_NOT_FOUND'
+  | 'DEPOSIT_LIMIT_EXCEEDED'
+  | 'CREDIT_OVERPAYMENT'
   | 'TRANSACTION_FAILED'
   | 'NETWORK_ERROR'
   | 'UNKNOWN_ERROR';

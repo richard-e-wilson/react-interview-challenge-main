@@ -1,6 +1,7 @@
 import { getAccount } from './accountHandler';
 import { withdrawal, deposit } from './transactionHandler';
 import * as db from '../utils/db';
+import { TransactionError } from '../utils/errors';
 
 jest.mock('../utils/db');
 
@@ -96,6 +97,59 @@ describe('Account & Transaction Handlers Unit Tests', () => {
       expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [1300, '1']);
     });
 
+    it.each([0, -1, 1.5])('rejects invalid deposit amount %s', async (amount) => {
+      await expect(deposit('1', amount)).rejects.toMatchObject({
+        code: 'INVALID_AMOUNT',
+      });
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('rejects deposits greater than $1000', async () => {
+      await expect(deposit('1', 1001)).rejects.toMatchObject({
+        code: 'DEPOSIT_LIMIT_EXCEEDED',
+      });
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('allows a credit account deposit that brings its balance to zero', async () => {
+      const creditAccount = {
+        account_number: '3',
+        name: 'Jill Credit',
+        amount: -300,
+        type: 'credit',
+        credit_limit: 1000,
+      };
+
+      (db.query as jest.Mock)
+        .mockResolvedValueOnce({ rowCount: 1, rows: [creditAccount] })
+        .mockResolvedValueOnce({ rowCount: 1 });
+
+      const result = await deposit('3', 300);
+
+      expect(result.amount).toBe(0);
+      expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [0, '3']);
+    });
+
+    it('rejects a credit deposit that would create a positive balance', async () => {
+      const creditAccount = {
+        account_number: '3',
+        name: 'Jill Credit',
+        amount: -300,
+        type: 'credit',
+        credit_limit: 1000,
+      };
+
+      (db.query as jest.Mock).mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [creditAccount],
+      });
+
+      await expect(deposit('3', 301)).rejects.toMatchObject({
+        code: 'CREDIT_OVERPAYMENT',
+      });
+      expect(db.query).toHaveBeenCalledTimes(1);
+    });
+
     it('throws "Transaction failed" when UPDATE query fails (rowCount 0)', async () => {
       const mockInitialAccount = {
         account_number: '1',
@@ -109,7 +163,9 @@ describe('Account & Transaction Handlers Unit Tests', () => {
         .mockResolvedValueOnce({ rowCount: 1, rows: [mockInitialAccount] })
         .mockResolvedValueOnce({ rowCount: 0 });
 
-      await expect(deposit('1', 300)).rejects.toThrow('Transaction failed');
+      await expect(deposit('1', 300)).rejects.toEqual(
+        expect.any(TransactionError)
+      );
     });
   });
 });

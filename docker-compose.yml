@@ -72,6 +72,8 @@ services:
     build:
       context: ./ui
       target: test
+    environment:
+      REACT_APP_API_URL: http://localhost:3000
 volumes:
     db:
     api-dev-node-modules:

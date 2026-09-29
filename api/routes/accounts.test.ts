@@ -2,6 +2,7 @@ import request from 'supertest';
 import { app } from '../index';
 import * as accountHandler from '../handlers/accountHandler';
 import * as transactionHandler from '../handlers/transactionHandler';
+import { TransactionError } from '../utils/errors';
 
 jest.mock('../handlers/accountHandler');
 jest.mock('../handlers/transactionHandler');
@@ -123,6 +124,34 @@ describe('Transactions API Endpoints (Starter Functionality)', () => {
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('INVALID_INPUT');
       expect(res.body.error.message).toContain('"amount" is required');
+      expect(res.body.error.traceId).toBeDefined();
+    });
+
+    it.each([0, -1, 1.5, '50'])('returns 400 for invalid deposit amount %s', async (amount) => {
+      const res = await request(app)
+        .put('/transactions/1/deposit')
+        .send({ amount });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_INPUT');
+      expect(transactionHandler.deposit).not.toHaveBeenCalled();
+    });
+
+    it('returns a deposit rule error from the handler', async () => {
+      (transactionHandler.deposit as jest.Mock).mockRejectedValue(
+        new TransactionError(
+          'DEPOSIT_LIMIT_EXCEEDED',
+          'Deposits cannot exceed $1000'
+        )
+      );
+
+      const res = await request(app)
+        .put('/transactions/1/deposit')
+        .send({ amount: 1001 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('DEPOSIT_LIMIT_EXCEEDED');
+      expect(res.body.error.message).toBe('Deposits cannot exceed $1000');
       expect(res.body.error.traceId).toBeDefined();
     });
 

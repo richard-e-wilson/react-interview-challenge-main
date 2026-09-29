@@ -64,6 +64,29 @@ describe('AccountDashboard Component', () => {
     });
   });
 
+  it('shows a rejected deposit without changing the account balance', async () => {
+    (apiService.deposit as jest.Mock).mockResolvedValueOnce({
+      success: false,
+      error: {
+        code: 'DEPOSIT_LIMIT_EXCEEDED',
+        message: 'Deposits cannot exceed $1000',
+        traceId: 'deposit-test-trace',
+      },
+    });
+
+    render(<AccountDashboard account={mockAccount} signOut={mockSignOut} />);
+
+    const depositInput = screen.getByLabelText(/Deposit Amount/i);
+    expect(depositInput).toHaveAttribute('min', '1');
+    expect(depositInput).toHaveAttribute('max', '1000');
+    expect(depositInput).toHaveAttribute('step', '1');
+    fireEvent.change(depositInput, { target: { value: '1001' } });
+    fireEvent.click(screen.getAllByRole('button', { name: /Submit/i })[0]);
+
+    expect(await screen.findByText('Deposits cannot exceed $1000')).toBeInTheDocument();
+    expect(screen.getByText('Balance: $500')).toBeInTheDocument();
+  });
+
   it('handles withdrawal submission and updates balance', async () => {
     (apiService.withdraw as jest.Mock).mockResolvedValueOnce({
       success: true,

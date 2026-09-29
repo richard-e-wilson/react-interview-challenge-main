@@ -2,6 +2,9 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { App } from './App';
 import { SignIn } from './components/SignIn';
+import { apiService } from './services/api';
+
+jest.mock('./services/api');
 
 describe('SignIn Component', () => {
   it('renders sign in header and account number input', () => {
@@ -29,7 +32,6 @@ describe('SignIn Component', () => {
 describe('App Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch = jest.fn();
     global.alert = jest.fn();
   });
 
@@ -39,15 +41,15 @@ describe('App Integration', () => {
   });
 
   it('signs in successfully and renders AccountDashboard', async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      status: 200,
-      json: async () => ({
-        account_number: 1,
+    (apiService.getAccount as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      data: {
+        accountNumber: 1,
         name: 'John Doe',
         amount: 500,
         type: 'checking',
-        credit_limit: null,
-      }),
+        creditLimit: null,
+      },
     });
 
     render(<App />);
@@ -64,8 +66,12 @@ describe('App Integration', () => {
   });
 
   it('alerts and stays on SignIn when account is not found', async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      status: 404,
+    (apiService.getAccount as jest.Mock).mockResolvedValueOnce({
+      success: false,
+      error: {
+        code: 'ACCOUNT_NOT_FOUND',
+        message: 'Account not found',
+      },
     });
 
     render(<App />);

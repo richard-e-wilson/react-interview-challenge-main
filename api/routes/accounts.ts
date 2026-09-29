@@ -1,25 +1,25 @@
 import express, { Request, Response } from "express";
 import Joi, { Schema } from "joi";
 import { getAccount } from "../handlers/accountHandler";
+import { sendApiError } from "../utils/errors";
 
 const router = express.Router();
 
 const getAccountSchema: Schema = Joi.string().required();
 
 router.get("/:accountID", async (request: Request, response: Response) => {
-  const {error} = getAccountSchema.validate(request.params.accountID);
+  const { error } = getAccountSchema.validate(request.params.accountID);
   
   if (error) {
-    return response.status(400).send(error.details[0].message);
+    return sendApiError(response, 400, "INVALID_INPUT", error.details[0].message);
   }
 
   try {
     const account = await getAccount(request.params.accountID);
-    response.send(account);
+    return response.status(200).json(account);
   } catch (err) {
-    response.status(404).send({"error": "Account not found"});
+    return sendApiError(response, 404, "ACCOUNT_NOT_FOUND", "Account not found");
   }
 });
 
 export default router;
-

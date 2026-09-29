@@ -36,7 +36,9 @@ describe('Accounts API Endpoints (Starter Functionality)', () => {
       const res = await request(app).get('/accounts/999');
 
       expect(res.status).toBe(404);
-      expect(res.body).toEqual({ error: 'Account not found' });
+      expect(res.body.error.code).toBe('ACCOUNT_NOT_FOUND');
+      expect(res.body.error.message).toBe('Account not found');
+      expect(res.body.error.traceId).toBeDefined();
     });
   });
 });
@@ -73,7 +75,9 @@ describe('Transactions API Endpoints (Starter Functionality)', () => {
         .send({});
 
       expect(res.status).toBe(400);
-      expect(res.text).toContain('"amount" is required');
+      expect(res.body.error.code).toBe('INVALID_INPUT');
+      expect(res.body.error.message).toContain('"amount" is required');
+      expect(res.body.error.traceId).toBeDefined();
     });
 
     it('returns 400 when transaction handler throws an error', async () => {
@@ -84,7 +88,9 @@ describe('Transactions API Endpoints (Starter Functionality)', () => {
         .send({ amount: 50 });
 
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'Transaction failed' });
+      expect(res.body.error.code).toBe('TRANSACTION_FAILED');
+      expect(res.body.error.message).toBe('Transaction failed');
+      expect(res.body.error.traceId).toBeDefined();
     });
   });
 
@@ -115,7 +121,9 @@ describe('Transactions API Endpoints (Starter Functionality)', () => {
         .send({});
 
       expect(res.status).toBe(400);
-      expect(res.text).toContain('"amount" is required');
+      expect(res.body.error.code).toBe('INVALID_INPUT');
+      expect(res.body.error.message).toContain('"amount" is required');
+      expect(res.body.error.traceId).toBeDefined();
     });
 
     it('returns 400 when transaction handler throws an error', async () => {
@@ -126,7 +134,9 @@ describe('Transactions API Endpoints (Starter Functionality)', () => {
         .send({ amount: 50 });
 
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'Transaction failed' });
+      expect(res.body.error.code).toBe('TRANSACTION_FAILED');
+      expect(res.body.error.message).toBe('Transaction failed');
+      expect(res.body.error.traceId).toBeDefined();
     });
   });
 });

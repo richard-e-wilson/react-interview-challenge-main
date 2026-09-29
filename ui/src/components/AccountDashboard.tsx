@@ -1,52 +1,40 @@
-import React, { useState } from "react"
-import {account} from "../Types/Account"
-import { Button, Card, CardContent, Grid, Paper, TextField } from "@mui/material";
+import React, { useState } from "react";
+import { Account, ApiError } from "../types";
+import { Button, Card, CardContent, Grid, Paper, TextField, Alert } from "@mui/material";
+import { apiService } from "../services/api";
 
 type AccountDashboardProps = {
-  account: account;
+  account: Account;
   signOut: () => Promise<void>;
-}
+};
 
 export const AccountDashboard = (props: AccountDashboardProps) => {
   const [depositAmount, setDepositAmount] = useState(0);
   const [withdrawAmount, setWithdrawAmount] = useState(0);
-  const [account, setAccount] = useState(props.account); 
+  const [account, setAccount] = useState<Account>(props.account);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const {signOut} = props;
+  const { signOut } = props;
 
   const depositFunds = async () => {
-    const requestOptions = {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({amount: depositAmount})
+    setErrorMessage(null);
+    const result = await apiService.deposit(account.accountNumber, depositAmount);
+    if (result.success) {
+      setAccount(result.data);
+    } else {
+      setErrorMessage(result.error.message);
     }
-    const response = await fetch(`http://localhost:3000/transactions/${account.accountNumber}/deposit`, requestOptions);
-    const data = await response.json();
-    setAccount({
-      accountNumber: data.account_number,
-      name: data.name,
-      amount: data.amount,
-      type: data.type,
-      creditLimit: data.credit_limit
-    });
-  }
+  };
 
   const withdrawFunds = async () => {
-    const requestOptions = {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({amount: withdrawAmount})
+    setErrorMessage(null);
+    const result = await apiService.withdraw(account.accountNumber, withdrawAmount);
+    if (result.success) {
+      setAccount(result.data);
+    } else {
+      setErrorMessage(result.error.message);
     }
-    const response = await fetch(`http://localhost:3000/transactions/${account.accountNumber}/withdraw`, requestOptions);
-    const data = await response.json();
-    setAccount({
-      accountNumber: data.account_number,
-      name: data.name,
-      amount: data.amount,
-      type: data.type,
-      creditLimit: data.credit_limit
-    });
-  }
+  };
 
   return (
     <Paper className="account-dashboard">
@@ -54,6 +42,13 @@ export const AccountDashboard = (props: AccountDashboardProps) => {
         <h1>Hello, {account.name}!</h1>
         <Button variant="contained" onClick={signOut}>Sign Out</Button>
       </div>
+
+      {errorMessage && (
+        <Alert severity="error" sx={{ margin: 2 }} onClose={() => setErrorMessage(null)}>
+          {errorMessage}
+        </Alert>
+      )}
+
       <h2>Balance: ${account.amount}</h2>
       <Grid container spacing={2} padding={2}>
         <Grid item xs={6}>
@@ -105,14 +100,13 @@ export const AccountDashboard = (props: AccountDashboardProps) => {
                   marginTop: 2
                 }}
                 onClick={withdrawFunds}
-                >
-                  Submit
-                </Button>
+              >
+                Submit
+              </Button>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
     </Paper>
-    
-  )
-}
+  );
+};

@@ -1,8 +1,12 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AccountDashboard } from './components/AccountDashboard';
+import { Account } from './types';
+import { apiService } from './services/api';
 
-const mockAccount = {
+jest.mock('./services/api');
+
+const mockAccount: Account = {
   accountNumber: 1,
   name: 'John Doe',
   amount: 500,
@@ -15,7 +19,6 @@ describe('AccountDashboard Component', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch = jest.fn();
   });
 
   it('renders account owner name and balance', () => {
@@ -35,14 +38,15 @@ describe('AccountDashboard Component', () => {
   });
 
   it('handles deposit submission and updates balance', async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      json: async () => ({
-        account_number: 1,
+    (apiService.deposit as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      data: {
+        accountNumber: 1,
         name: 'John Doe',
         amount: 600,
         type: 'checking',
-        credit_limit: null,
-      }),
+        creditLimit: null,
+      },
     });
 
     render(<AccountDashboard account={mockAccount} signOut={mockSignOut} />);
@@ -53,13 +57,7 @@ describe('AccountDashboard Component', () => {
     const depositSubmitBtn = screen.getAllByRole('button', { name: /Submit/i })[0];
     fireEvent.click(depositSubmitBtn);
 
-    expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:3000/transactions/1/deposit',
-      expect.objectContaining({
-        method: 'PUT',
-        body: JSON.stringify({ amount: 100 }),
-      })
-    );
+    expect(apiService.deposit).toHaveBeenCalledWith(1, 100);
 
     await waitFor(() => {
       expect(screen.getByText('Balance: $600')).toBeInTheDocument();
@@ -67,14 +65,15 @@ describe('AccountDashboard Component', () => {
   });
 
   it('handles withdrawal submission and updates balance', async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      json: async () => ({
-        account_number: 1,
+    (apiService.withdraw as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      data: {
+        accountNumber: 1,
         name: 'John Doe',
         amount: 450,
         type: 'checking',
-        credit_limit: null,
-      }),
+        creditLimit: null,
+      },
     });
 
     render(<AccountDashboard account={mockAccount} signOut={mockSignOut} />);
@@ -85,13 +84,7 @@ describe('AccountDashboard Component', () => {
     const withdrawSubmitBtn = screen.getAllByRole('button', { name: /Submit/i })[1];
     fireEvent.click(withdrawSubmitBtn);
 
-    expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:3000/transactions/1/withdraw',
-      expect.objectContaining({
-        method: 'PUT',
-        body: JSON.stringify({ amount: 50 }),
-      })
-    );
+    expect(apiService.withdraw).toHaveBeenCalledWith(1, 50);
 
     await waitFor(() => {
       expect(screen.getByText('Balance: $450')).toBeInTheDocument();

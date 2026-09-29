@@ -13,6 +13,8 @@ ENV CI=true
 CMD ["npm", "test", "--", "--watchAll=false"]
 
 FROM development AS build
+ARG REACT_APP_API_URL
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
 RUN npm run build
 
 FROM nginx:1.27.5-alpine AS production

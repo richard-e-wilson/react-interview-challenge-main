@@ -8,6 +8,7 @@
     "dev:up": "docker compose rm -sf api-dev ui-dev && docker compose up -d --build db api-dev ui-dev",
     "dev:logs": "docker compose logs --tail 100 -f db api-dev ui-dev",
     "dev:down": "docker compose rm -sf api-dev ui-dev && docker compose stop db",
+    "dev:clean": "docker compose down -v --remove-orphans",
     "test:docker": "docker compose run --rm --build api-test && docker compose run --rm --build ui-test",
     "test:docker:api": "docker compose run --rm --build api-test",
     "test:docker:ui": "docker compose run --rm --build ui-test",

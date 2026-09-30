@@ -42,6 +42,34 @@ describe('Transactions API Endpoints', () => {
       expect(res.body.error.traceId).toBeDefined();
     });
 
+    it.each([0, -5, 2.5, '50'])('returns 400 for invalid withdrawal amount %s', async (amount) => {
+      const res = await request(app)
+        .put('/transactions/1/withdraw')
+        .send({ amount });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_INPUT');
+      expect(transactionHandler.withdrawal).not.toHaveBeenCalled();
+    });
+
+    it('returns a withdrawal rule error from the handler', async () => {
+      (transactionHandler.withdrawal as jest.Mock).mockRejectedValue(
+        new TransactionError(
+          'WITHDRAWAL_LIMIT_EXCEEDED',
+          'Withdrawals cannot exceed $200'
+        )
+      );
+
+      const res = await request(app)
+        .put('/transactions/1/withdraw')
+        .send({ amount: 205 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('WITHDRAWAL_LIMIT_EXCEEDED');
+      expect(res.body.error.message).toBe('Withdrawals cannot exceed $200');
+      expect(res.body.error.traceId).toBeDefined();
+    });
+
     it('returns 400 when transaction handler throws an error', async () => {
       (transactionHandler.withdrawal as jest.Mock).mockRejectedValue(new Error('Transaction failed'));
 

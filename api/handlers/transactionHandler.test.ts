@@ -29,6 +29,105 @@ describe('Transaction Handler Unit Tests', () => {
       expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [800, '1']);
     });
 
+    it.each([0, -5, 2.5])('rejects invalid withdrawal amount %s', async (amount) => {
+      await expect(withdrawal('1', amount)).rejects.toMatchObject({
+        code: 'INVALID_AMOUNT',
+      });
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('rejects withdrawals greater than $200', async () => {
+      await expect(withdrawal('1', 205)).rejects.toMatchObject({
+        code: 'WITHDRAWAL_LIMIT_EXCEEDED',
+      });
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('rejects amounts that cannot be dispensed in $5 bills', async () => {
+      await expect(withdrawal('1', 42)).rejects.toMatchObject({
+        code: 'INVALID_DENOMINATION',
+      });
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it.each(['checking', 'savings'])('allows a %s account to withdraw its full balance within the other transaction limits', async (type) => {
+      const account = {
+        account_number: '1',
+        name: 'Jane Doe',
+        amount: 200,
+        type,
+        credit_limit: null,
+      };
+
+      (db.query as jest.Mock)
+        .mockResolvedValueOnce({ rowCount: 1, rows: [account] })
+        .mockResolvedValueOnce({ rowCount: 1 });
+
+      const result = await withdrawal('1', 200);
+
+      expect(result.amount).toBe(0);
+      expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [0, '1']);
+    });
+
+    it.each(['checking', 'savings'])('rejects a %s account overdraft when the amount fits the other transaction rules', async (type) => {
+      const account = {
+        account_number: '1',
+        name: 'Jane Doe',
+        amount: 99,
+        type,
+        credit_limit: null,
+      };
+
+      (db.query as jest.Mock).mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [account],
+      });
+
+      await expect(withdrawal('1', 100)).rejects.toMatchObject({
+        code: 'INSUFFICIENT_FUNDS',
+      });
+      expect(db.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows a credit withdrawal up to the remaining credit limit', async () => {
+      const creditAccount = {
+        account_number: '3',
+        name: 'Jill Credit',
+        amount: -800,
+        type: 'credit',
+        credit_limit: 1000,
+      };
+
+      (db.query as jest.Mock)
+        .mockResolvedValueOnce({ rowCount: 1, rows: [creditAccount] })
+        .mockResolvedValueOnce({ rowCount: 1 });
+
+      const result = await withdrawal('3', 200);
+
+      expect(result.amount).toBe(-1000);
+      expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [-1000, '3']);
+    });
+
+    it('rejects a withdrawal beyond the remaining credit limit', async () => {
+      const creditAccount = {
+        account_number: '3',
+        name: 'Jill Credit',
+        amount: -850,
+        type: 'credit',
+        credit_limit: 1000,
+      };
+
+      (db.query as jest.Mock).mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [creditAccount],
+      });
+
+      await expect(withdrawal('3', 200)).rejects.toMatchObject({
+        code: 'CREDIT_LIMIT_EXCEEDED',
+      });
+      expect(db.query).toHaveBeenCalledTimes(1);
+    });
+
     it('throws "Transaction failed" when UPDATE query fails (rowCount 0)', async () => {
       const mockInitialAccount = {
         account_number: '1',
@@ -42,7 +141,9 @@ describe('Transaction Handler Unit Tests', () => {
         .mockResolvedValueOnce({ rowCount: 1, rows: [mockInitialAccount] })
         .mockResolvedValueOnce({ rowCount: 0 });
 
-      await expect(withdrawal('1', 200)).rejects.toThrow('Transaction failed');
+      await expect(withdrawal('1', 200)).rejects.toEqual(
+        expect.any(TransactionError)
+      );
     });
   });
 

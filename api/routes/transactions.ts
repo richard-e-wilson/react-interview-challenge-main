@@ -6,31 +6,31 @@ import { sendApiError, TransactionError } from "../utils/errors";
 const router = express.Router();
 
 const transactionSchema: Schema = Joi.object({
-  amount: Joi.number().required(),
-});
-
-const depositSchema: Schema = Joi.object({
   amount: Joi.number().integer().positive().strict().required(),
 });
 
 router.put("/:accountID/withdraw", async (request: Request, response: Response) => {
-  const { error } = transactionSchema.validate(request.body);
+  const { error, value } = transactionSchema.validate(request.body);
 
   if (error) {
     return sendApiError(response, 400, "INVALID_INPUT", error.details[0].message);
   }
 
   try {
-    const updatedAccount = await withdrawal(request.params.accountID, request.body.amount);
+    const updatedAccount = await withdrawal(request.params.accountID, value.amount);
     return response.status(200).json(updatedAccount);
   } catch (err) {
+    if (err instanceof TransactionError) {
+      return sendApiError(response, err.statusCode, err.code, err.message);
+    }
+
     const message = err instanceof Error ? err.message : "Transaction failed";
     return sendApiError(response, 400, "TRANSACTION_FAILED", message);
   }
 });
 
 router.put("/:accountID/deposit", async (request: Request, response: Response) => {
-  const { error, value } = depositSchema.validate(request.body);
+  const { error, value } = transactionSchema.validate(request.body);
 
   if (error) {
     return sendApiError(response, 400, "INVALID_INPUT", error.details[0].message);

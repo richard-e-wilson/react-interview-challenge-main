@@ -87,6 +87,7 @@ export const AccountDashboard = (props: AccountDashboardProps) => {
                 label="Withdraw Amount" 
                 variant="outlined" 
                 type="number" 
+                inputProps={{ min: 5, max: 200, step: 5 }}
                 sx={{
                   display: 'flex',
                   margin: 'auto',

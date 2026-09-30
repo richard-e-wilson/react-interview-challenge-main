@@ -113,4 +113,27 @@ describe('AccountDashboard Component', () => {
       expect(screen.getByText('Balance: $450')).toBeInTheDocument();
     });
   });
+
+  it('shows a rejected withdrawal without changing the account balance', async () => {
+    (apiService.withdraw as jest.Mock).mockResolvedValueOnce({
+      success: false,
+      error: {
+        code: 'WITHDRAWAL_LIMIT_EXCEEDED',
+        message: 'Withdrawals cannot exceed $200',
+        traceId: 'withdrawal-test-trace',
+      },
+    });
+
+    render(<AccountDashboard account={mockAccount} signOut={mockSignOut} />);
+
+    const withdrawInput = screen.getByLabelText(/Withdraw Amount/i);
+    expect(withdrawInput).toHaveAttribute('min', '5');
+    expect(withdrawInput).toHaveAttribute('max', '200');
+    expect(withdrawInput).toHaveAttribute('step', '5');
+    fireEvent.change(withdrawInput, { target: { value: '205' } });
+    fireEvent.click(screen.getAllByRole('button', { name: /Submit/i })[1]);
+
+    expect(await screen.findByText('Withdrawals cannot exceed $200')).toBeInTheDocument();
+    expect(screen.getByText('Balance: $500')).toBeInTheDocument();
+  });
 });

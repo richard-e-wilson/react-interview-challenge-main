@@ -1,12 +1,10 @@
 import pg from 'pg';
 
-export const query = async (query: string, values: any[] = []): Promise<pg.QueryResult<any>> => {
-  const {Client} = pg;
-  const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-  });
-  await client.connect();
-  const res = await client.query(query, values);
-  await client.end();
-  return res;
-}
+export const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+export const query = (
+  text: string,
+  values: any[] = []
+): Promise<pg.QueryResult<any>> => pool.query(text, values);

@@ -1,4 +1,5 @@
 -- CREATE TABLE
+DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS accounts;
 CREATE TABLE accounts (
     account_number INTEGER PRIMARY KEY,
@@ -10,6 +11,22 @@ CREATE TABLE accounts (
 
 ALTER TABLE accounts ADD CONSTRAINT verify_type
 CHECK (type IN ('checking', 'savings', 'credit'));
+
+CREATE TABLE transactions (
+    id SERIAL PRIMARY KEY,
+    account_number INTEGER NOT NULL REFERENCES accounts(account_number),
+    type VARCHAR NOT NULL CHECK (type IN ('deposit', 'withdrawal')),
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    balance_before INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    idempotency_key UUID NOT NULL,
+    trace_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (account_number, idempotency_key)
+);
+
+CREATE INDEX transactions_account_type_created_at_idx
+ON transactions (account_number, type, created_at);
 
 -- LOAD DATAS
 INSERT INTO accounts 

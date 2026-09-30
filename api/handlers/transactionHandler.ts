@@ -1,11 +1,17 @@
 import { query } from "../utils/db";
 import { TransactionError } from "../utils/errors";
+import { TransactionContext } from "../types";
+import { recordTransaction } from "../utils/transactionJournal";
 import { getAccount } from "./accountHandler";
 
 const MAX_DEPOSIT_AMOUNT = 1000;
 const MAX_WITHDRAWAL_AMOUNT = 200;
 
-export const withdrawal = async (accountID: string, amount: number) => {
+export const withdrawal = async (
+  accountID: string,
+  amount: number,
+  context: TransactionContext
+) => {
   if (!Number.isInteger(amount) || amount <= 0) {
     throw new TransactionError(
       "INVALID_AMOUNT",
@@ -28,6 +34,7 @@ export const withdrawal = async (accountID: string, amount: number) => {
   }
 
   const account = await getAccount(accountID);
+  const balanceBefore = account.amount;
   const updatedAmount = account.amount - amount;
 
   if (account.type === "credit") {
@@ -58,10 +65,23 @@ export const withdrawal = async (accountID: string, amount: number) => {
     throw new TransactionError("TRANSACTION_FAILED", "Transaction failed");
   }
 
+  await recordTransaction({
+    accountID,
+    type: "withdrawal",
+    amount,
+    balanceBefore,
+    balanceAfter: updatedAmount,
+    ...context,
+  });
+
   return account;
 }
 
-export const deposit = async (accountID: string, amount: number) => {
+export const deposit = async (
+  accountID: string,
+  amount: number,
+  context: TransactionContext
+) => {
   if (!Number.isInteger(amount) || amount <= 0) {
     throw new TransactionError(
       "INVALID_AMOUNT",
@@ -77,6 +97,7 @@ export const deposit = async (accountID: string, amount: number) => {
   }
 
   const account = await getAccount(accountID);
+  const balanceBefore = account.amount;
 
   if (account.type === "credit" && account.amount + amount > 0) {
     throw new TransactionError(
@@ -96,6 +117,15 @@ export const deposit = async (accountID: string, amount: number) => {
   if (res.rowCount === 0) {
     throw new TransactionError("TRANSACTION_FAILED", "Transaction failed");
   }
+
+  await recordTransaction({
+    accountID,
+    type: "deposit",
+    amount,
+    balanceBefore,
+    balanceAfter: account.amount,
+    ...context,
+  });
 
   return account;
 }

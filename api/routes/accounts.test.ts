@@ -37,6 +37,7 @@ describe('Accounts API Endpoints', () => {
       expect(res.body.error.code).toBe('ACCOUNT_NOT_FOUND');
       expect(res.body.error.message).toBe('Account not found');
       expect(res.body.error.traceId).toBeDefined();
+      expect(res.body.error.traceId).toBe(res.headers['x-trace-id']);
     });
   });
 });

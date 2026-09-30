@@ -5,6 +5,11 @@ import { TransactionError } from '../utils/errors';
 jest.mock('../utils/db');
 
 describe('Transaction Handler Unit Tests', () => {
+  const transactionContext = {
+    idempotencyKey: '11111111-1111-4111-8111-111111111111',
+    traceId: '22222222-2222-4222-8222-222222222222',
+  };
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -21,30 +26,36 @@ describe('Transaction Handler Unit Tests', () => {
 
       (db.query as jest.Mock)
         .mockResolvedValueOnce({ rowCount: 1, rows: [mockInitialAccount] }) // getAccount
-        .mockResolvedValueOnce({ rowCount: 1 }); // UPDATE query
+        .mockResolvedValueOnce({ rowCount: 1 }) // UPDATE query
+        .mockResolvedValueOnce({ rowCount: 1 }); // journal INSERT
 
-      const result = await withdrawal('1', 200);
+      const result = await withdrawal('1', 200, transactionContext);
 
       expect(result.amount).toBe(800);
       expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [800, '1']);
+      expect(db.query).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining('INSERT INTO transactions'),
+        ['1', 'withdrawal', 200, 1000, 800, transactionContext.idempotencyKey, transactionContext.traceId]
+      );
     });
 
     it.each([0, -5, 2.5])('rejects invalid withdrawal amount %s', async (amount) => {
-      await expect(withdrawal('1', amount)).rejects.toMatchObject({
+      await expect(withdrawal('1', amount, transactionContext)).rejects.toMatchObject({
         code: 'INVALID_AMOUNT',
       });
       expect(db.query).not.toHaveBeenCalled();
     });
 
     it('rejects withdrawals greater than $200', async () => {
-      await expect(withdrawal('1', 205)).rejects.toMatchObject({
+      await expect(withdrawal('1', 205, transactionContext)).rejects.toMatchObject({
         code: 'WITHDRAWAL_LIMIT_EXCEEDED',
       });
       expect(db.query).not.toHaveBeenCalled();
     });
 
     it('rejects amounts that cannot be dispensed in $5 bills', async () => {
-      await expect(withdrawal('1', 42)).rejects.toMatchObject({
+      await expect(withdrawal('1', 42, transactionContext)).rejects.toMatchObject({
         code: 'INVALID_DENOMINATION',
       });
       expect(db.query).not.toHaveBeenCalled();
@@ -63,7 +74,7 @@ describe('Transaction Handler Unit Tests', () => {
         .mockResolvedValueOnce({ rowCount: 1, rows: [account] })
         .mockResolvedValueOnce({ rowCount: 1 });
 
-      const result = await withdrawal('1', 200);
+      const result = await withdrawal('1', 200, transactionContext);
 
       expect(result.amount).toBe(0);
       expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [0, '1']);
@@ -83,7 +94,7 @@ describe('Transaction Handler Unit Tests', () => {
         rows: [account],
       });
 
-      await expect(withdrawal('1', 100)).rejects.toMatchObject({
+      await expect(withdrawal('1', 100, transactionContext)).rejects.toMatchObject({
         code: 'INSUFFICIENT_FUNDS',
       });
       expect(db.query).toHaveBeenCalledTimes(1);
@@ -102,7 +113,7 @@ describe('Transaction Handler Unit Tests', () => {
         .mockResolvedValueOnce({ rowCount: 1, rows: [creditAccount] })
         .mockResolvedValueOnce({ rowCount: 1 });
 
-      const result = await withdrawal('3', 200);
+      const result = await withdrawal('3', 200, transactionContext);
 
       expect(result.amount).toBe(-1000);
       expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [-1000, '3']);
@@ -122,7 +133,7 @@ describe('Transaction Handler Unit Tests', () => {
         rows: [creditAccount],
       });
 
-      await expect(withdrawal('3', 200)).rejects.toMatchObject({
+      await expect(withdrawal('3', 200, transactionContext)).rejects.toMatchObject({
         code: 'CREDIT_LIMIT_EXCEEDED',
       });
       expect(db.query).toHaveBeenCalledTimes(1);
@@ -141,7 +152,7 @@ describe('Transaction Handler Unit Tests', () => {
         .mockResolvedValueOnce({ rowCount: 1, rows: [mockInitialAccount] })
         .mockResolvedValueOnce({ rowCount: 0 });
 
-      await expect(withdrawal('1', 200)).rejects.toEqual(
+      await expect(withdrawal('1', 200, transactionContext)).rejects.toEqual(
         expect.any(TransactionError)
       );
     });
@@ -159,23 +170,29 @@ describe('Transaction Handler Unit Tests', () => {
 
       (db.query as jest.Mock)
         .mockResolvedValueOnce({ rowCount: 1, rows: [mockInitialAccount] }) // getAccount
-        .mockResolvedValueOnce({ rowCount: 1 }); // UPDATE query
+        .mockResolvedValueOnce({ rowCount: 1 }) // UPDATE query
+        .mockResolvedValueOnce({ rowCount: 1 }); // journal INSERT
 
-      const result = await deposit('1', 300);
+      const result = await deposit('1', 300, transactionContext);
 
       expect(result.amount).toBe(1300);
       expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [1300, '1']);
+      expect(db.query).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining('INSERT INTO transactions'),
+        ['1', 'deposit', 300, 1000, 1300, transactionContext.idempotencyKey, transactionContext.traceId]
+      );
     });
 
     it.each([0, -1, 1.5])('rejects invalid deposit amount %s', async (amount) => {
-      await expect(deposit('1', amount)).rejects.toMatchObject({
+      await expect(deposit('1', amount, transactionContext)).rejects.toMatchObject({
         code: 'INVALID_AMOUNT',
       });
       expect(db.query).not.toHaveBeenCalled();
     });
 
     it('rejects deposits greater than $1000', async () => {
-      await expect(deposit('1', 1001)).rejects.toMatchObject({
+      await expect(deposit('1', 1001, transactionContext)).rejects.toMatchObject({
         code: 'DEPOSIT_LIMIT_EXCEEDED',
       });
       expect(db.query).not.toHaveBeenCalled();
@@ -194,7 +211,7 @@ describe('Transaction Handler Unit Tests', () => {
         .mockResolvedValueOnce({ rowCount: 1, rows: [creditAccount] })
         .mockResolvedValueOnce({ rowCount: 1 });
 
-      const result = await deposit('3', 300);
+      const result = await deposit('3', 300, transactionContext);
 
       expect(result.amount).toBe(0);
       expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [0, '3']);
@@ -214,7 +231,7 @@ describe('Transaction Handler Unit Tests', () => {
         rows: [creditAccount],
       });
 
-      await expect(deposit('3', 301)).rejects.toMatchObject({
+      await expect(deposit('3', 301, transactionContext)).rejects.toMatchObject({
         code: 'CREDIT_OVERPAYMENT',
       });
       expect(db.query).toHaveBeenCalledTimes(1);
@@ -233,7 +250,7 @@ describe('Transaction Handler Unit Tests', () => {
         .mockResolvedValueOnce({ rowCount: 1, rows: [mockInitialAccount] })
         .mockResolvedValueOnce({ rowCount: 0 });
 
-      await expect(deposit('1', 300)).rejects.toEqual(
+      await expect(deposit('1', 300, transactionContext)).rejects.toEqual(
         expect.any(TransactionError)
       );
     });

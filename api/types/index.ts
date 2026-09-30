@@ -15,7 +15,16 @@ export interface Transaction {
   accountNumber: number;
   type: TransactionType;
   amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  idempotencyKey: string;
+  traceId: string;
   createdAt: string;
+}
+
+export interface TransactionContext {
+  idempotencyKey: string;
+  traceId: string;
 }
 
 // Known starter error codes matching baseline application behavior

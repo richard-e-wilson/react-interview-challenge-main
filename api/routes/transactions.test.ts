@@ -12,6 +12,8 @@ describe('Transactions API Endpoints', () => {
 
   describe('PUT /transactions/:accountID/withdraw', () => {
     it('returns 200 and updated account on successful withdrawal', async () => {
+      const idempotencyKey = '11111111-1111-4111-8111-111111111111';
+      const traceId = '33333333-3333-4333-8333-333333333333';
       const mockUpdatedAccount = {
         account_number: '1',
         name: 'John Doe',
@@ -24,11 +26,18 @@ describe('Transactions API Endpoints', () => {
 
       const res = await request(app)
         .put('/transactions/1/withdraw')
+        .set('Idempotency-Key', idempotencyKey)
+        .set('X-Trace-Id', traceId)
         .send({ amount: 50 });
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual(mockUpdatedAccount);
-      expect(transactionHandler.withdrawal).toHaveBeenCalledWith('1', 50);
+      expect(res.headers['x-trace-id']).toBe(traceId);
+      expect(res.headers['idempotency-key']).toBe(idempotencyKey);
+      expect(transactionHandler.withdrawal).toHaveBeenCalledWith('1', 50, {
+        idempotencyKey,
+        traceId,
+      });
     });
 
     it('returns 400 when amount validation fails (missing amount)', async () => {
@@ -86,6 +95,7 @@ describe('Transactions API Endpoints', () => {
 
   describe('PUT /transactions/:accountID/deposit', () => {
     it('returns 200 and updated account on successful deposit', async () => {
+      const idempotencyKey = '22222222-2222-4222-8222-222222222222';
       const mockUpdatedAccount = {
         account_number: '1',
         name: 'John Doe',
@@ -98,11 +108,17 @@ describe('Transactions API Endpoints', () => {
 
       const res = await request(app)
         .put('/transactions/1/deposit')
+        .set('Idempotency-Key', idempotencyKey)
         .send({ amount: 50 });
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual(mockUpdatedAccount);
-      expect(transactionHandler.deposit).toHaveBeenCalledWith('1', 50);
+      expect(res.headers['x-trace-id']).toBeDefined();
+      expect(res.headers['idempotency-key']).toBe(idempotencyKey);
+      expect(transactionHandler.deposit).toHaveBeenCalledWith('1', 50, {
+        idempotencyKey,
+        traceId: expect.any(String),
+      });
     });
 
     it('returns 400 when amount validation fails (missing amount)', async () => {

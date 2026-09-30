@@ -52,7 +52,11 @@ async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
 
 export const apiService = {
   async getAccount(accountNumber: number): Promise<ApiResponse<Account>> {
-    const response = await fetch(`${API_BASE_URL}/accounts/${accountNumber}`);
+    const response = await fetch(`${API_BASE_URL}/accounts/${accountNumber}`, {
+      headers: {
+        'X-Trace-Id': crypto.randomUUID(),
+      },
+    });
     const result = await handleResponse<{
       account_number: number;
       name: string;
@@ -80,7 +84,11 @@ export const apiService = {
   async deposit(accountNumber: number, amount: number): Promise<ApiResponse<Account>> {
     const response = await fetch(`${API_BASE_URL}/transactions/${accountNumber}/deposit`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Trace-Id': crypto.randomUUID(),
+        'Idempotency-Key': crypto.randomUUID(),
+      },
       body: JSON.stringify({ amount }),
     });
 
@@ -111,7 +119,11 @@ export const apiService = {
   async withdraw(accountNumber: number, amount: number): Promise<ApiResponse<Account>> {
     const response = await fetch(`${API_BASE_URL}/transactions/${accountNumber}/withdraw`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Trace-Id': crypto.randomUUID(),
+        'Idempotency-Key': crypto.randomUUID(),
+      },
       body: JSON.stringify({ amount }),
     });
 

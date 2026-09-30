@@ -1,11 +1,12 @@
 import { query } from "../utils/db";
 import { TransactionError } from "../utils/errors";
 import { TransactionContext } from "../types";
-import { recordTransaction } from "../utils/transactionJournal";
+import { getDailyWithdrawalTotal, recordTransaction } from "../utils/transactionJournal";
 import { getAccount } from "./accountHandler";
 
 const MAX_DEPOSIT_AMOUNT = 1000;
 const MAX_WITHDRAWAL_AMOUNT = 200;
+const MAX_DAILY_WITHDRAWAL_AMOUNT = 400;
 
 export const withdrawal = async (
   accountID: string,
@@ -50,6 +51,14 @@ export const withdrawal = async (
     throw new TransactionError(
       "INSUFFICIENT_FUNDS",
       "Withdrawal amount exceeds the available balance"
+    );
+  }
+
+  const withdrawnToday = await getDailyWithdrawalTotal(accountID);
+  if (withdrawnToday + amount > MAX_DAILY_WITHDRAWAL_AMOUNT) {
+    throw new TransactionError(
+      "DAILY_WITHDRAWAL_LIMIT_EXCEEDED",
+      "Withdrawals cannot exceed $400 per UTC calendar day"
     );
   }
 

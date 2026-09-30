@@ -26,15 +26,17 @@ describe('Transaction Handler Unit Tests', () => {
 
       (db.query as jest.Mock)
         .mockResolvedValueOnce({ rowCount: 1, rows: [mockInitialAccount] }) // getAccount
+        .mockResolvedValueOnce({ rows: [{ total: '200' }] }) // daily withdrawal total
         .mockResolvedValueOnce({ rowCount: 1 }) // UPDATE query
         .mockResolvedValueOnce({ rowCount: 1 }); // journal INSERT
 
       const result = await withdrawal('1', 200, transactionContext);
 
       expect(result.amount).toBe(800);
-      expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [800, '1']);
+      expect(db.query).toHaveBeenNthCalledWith(2, expect.stringContaining("AT TIME ZONE 'UTC'"), ['1']);
+      expect(db.query).toHaveBeenNthCalledWith(3, expect.any(String), [800, '1']);
       expect(db.query).toHaveBeenNthCalledWith(
-        3,
+        4,
         expect.stringContaining('INSERT INTO transactions'),
         ['1', 'withdrawal', 200, 1000, 800, transactionContext.idempotencyKey, transactionContext.traceId]
       );
@@ -72,12 +74,13 @@ describe('Transaction Handler Unit Tests', () => {
 
       (db.query as jest.Mock)
         .mockResolvedValueOnce({ rowCount: 1, rows: [account] })
+        .mockResolvedValueOnce({ rows: [{ total: '0' }] })
         .mockResolvedValueOnce({ rowCount: 1 });
 
       const result = await withdrawal('1', 200, transactionContext);
 
       expect(result.amount).toBe(0);
-      expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [0, '1']);
+      expect(db.query).toHaveBeenNthCalledWith(3, expect.any(String), [0, '1']);
     });
 
     it.each(['checking', 'savings'])('rejects a %s account overdraft when the amount fits the other transaction rules', async (type) => {
@@ -111,12 +114,33 @@ describe('Transaction Handler Unit Tests', () => {
 
       (db.query as jest.Mock)
         .mockResolvedValueOnce({ rowCount: 1, rows: [creditAccount] })
+        .mockResolvedValueOnce({ rows: [{ total: '0' }] })
         .mockResolvedValueOnce({ rowCount: 1 });
 
       const result = await withdrawal('3', 200, transactionContext);
 
       expect(result.amount).toBe(-1000);
-      expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [-1000, '3']);
+      expect(db.query).toHaveBeenNthCalledWith(3, expect.any(String), [-1000, '3']);
+    });
+
+    it('rejects a withdrawal that would exceed the $400 UTC daily limit', async () => {
+      const account = {
+        account_number: '1',
+        name: 'Jane Doe',
+        amount: 1000,
+        type: 'checking',
+        credit_limit: null,
+      };
+
+      (db.query as jest.Mock)
+        .mockResolvedValueOnce({ rowCount: 1, rows: [account] })
+        .mockResolvedValueOnce({ rows: [{ total: '350' }] });
+
+      await expect(withdrawal('1', 55, transactionContext)).rejects.toMatchObject({
+        code: 'DAILY_WITHDRAWAL_LIMIT_EXCEEDED',
+        message: 'Withdrawals cannot exceed $400 per UTC calendar day',
+      });
+      expect(db.query).toHaveBeenCalledTimes(2);
     });
 
     it('rejects a withdrawal beyond the remaining credit limit', async () => {
@@ -150,6 +174,7 @@ describe('Transaction Handler Unit Tests', () => {
 
       (db.query as jest.Mock)
         .mockResolvedValueOnce({ rowCount: 1, rows: [mockInitialAccount] })
+        .mockResolvedValueOnce({ rows: [{ total: '0' }] })
         .mockResolvedValueOnce({ rowCount: 0 });
 
       await expect(withdrawal('1', 200, transactionContext)).rejects.toEqual(

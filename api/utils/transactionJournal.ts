@@ -11,6 +11,20 @@ interface TransactionRecord {
   traceId: string;
 }
 
+export const getDailyWithdrawalTotal = async (accountID: string): Promise<number> => {
+  const result = await query(`
+    SELECT COALESCE(SUM(amount), 0) AS total
+    FROM transactions
+    WHERE account_number = $1
+      AND type = 'withdrawal'
+      AND created_at >= date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+      AND created_at < (date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC') + INTERVAL '1 day') AT TIME ZONE 'UTC'`,
+    [accountID]
+  );
+
+  return Number(result.rows[0]?.total ?? 0);
+};
+
 export const recordTransaction = async (transaction: TransactionRecord) => {
   await query(`
     INSERT INTO transactions (

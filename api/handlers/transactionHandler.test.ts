@@ -10,6 +10,12 @@ describe('Transaction Handler Unit Tests', () => {
     traceId: '22222222-2222-4222-8222-222222222222',
   };
 
+  beforeEach(() => {
+    (db.withTransaction as jest.Mock).mockImplementation(
+      async (operation: (executeQuery: typeof db.query) => Promise<unknown>) => operation(db.query)
+    );
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -33,6 +39,7 @@ describe('Transaction Handler Unit Tests', () => {
       const result = await withdrawal('1', 200, transactionContext);
 
       expect(result.amount).toBe(800);
+      expect(db.query).toHaveBeenNthCalledWith(1, expect.stringContaining('FOR UPDATE'), ['1']);
       expect(db.query).toHaveBeenNthCalledWith(2, expect.stringContaining("AT TIME ZONE 'UTC'"), ['1']);
       expect(db.query).toHaveBeenNthCalledWith(3, expect.any(String), [800, '1']);
       expect(db.query).toHaveBeenNthCalledWith(
@@ -201,6 +208,7 @@ describe('Transaction Handler Unit Tests', () => {
       const result = await deposit('1', 300, transactionContext);
 
       expect(result.amount).toBe(1300);
+      expect(db.query).toHaveBeenNthCalledWith(1, expect.stringContaining('FOR UPDATE'), ['1']);
       expect(db.query).toHaveBeenNthCalledWith(2, expect.any(String), [1300, '1']);
       expect(db.query).toHaveBeenNthCalledWith(
         3,

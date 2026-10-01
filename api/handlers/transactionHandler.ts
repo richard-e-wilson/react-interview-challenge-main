@@ -1,4 +1,4 @@
-import { query } from "../utils/db";
+import { withTransaction } from "../utils/db";
 import { TransactionError } from "../utils/errors";
 import { TransactionContext } from "../types";
 import { getDailyWithdrawalTotal, recordTransaction } from "../utils/transactionJournal";
@@ -34,56 +34,58 @@ export const withdrawal = async (
     );
   }
 
-  const account = await getAccount(accountID);
-  const balanceBefore = account.amount;
-  const updatedAmount = account.amount - amount;
+  return withTransaction(async (executeQuery) => {
+    const account = await getAccount(accountID, executeQuery, true);
+    const balanceBefore = account.amount;
+    const updatedAmount = account.amount - amount;
 
-  if (account.type === "credit") {
-    const creditLimit = account.credit_limit ?? 0;
+    if (account.type === "credit") {
+      const creditLimit = account.credit_limit ?? 0;
 
-    if (updatedAmount < -creditLimit) {
+      if (updatedAmount < -creditLimit) {
+        throw new TransactionError(
+          "CREDIT_LIMIT_EXCEEDED",
+          "Withdrawal would exceed the account credit limit"
+        );
+      }
+    } else if (updatedAmount < 0) {
       throw new TransactionError(
-        "CREDIT_LIMIT_EXCEEDED",
-        "Withdrawal would exceed the account credit limit"
+        "INSUFFICIENT_FUNDS",
+        "Withdrawal amount exceeds the available balance"
       );
     }
-  } else if (updatedAmount < 0) {
-    throw new TransactionError(
-      "INSUFFICIENT_FUNDS",
-      "Withdrawal amount exceeds the available balance"
+
+    const withdrawnToday = await getDailyWithdrawalTotal(accountID, executeQuery);
+    if (withdrawnToday + amount > MAX_DAILY_WITHDRAWAL_AMOUNT) {
+      throw new TransactionError(
+        "DAILY_WITHDRAWAL_LIMIT_EXCEEDED",
+        "Withdrawals cannot exceed $400 per UTC calendar day"
+      );
+    }
+
+    account.amount = updatedAmount;
+    const res = await executeQuery(`
+      UPDATE accounts
+      SET amount = $1
+      WHERE account_number = $2`,
+      [account.amount, accountID]
     );
-  }
 
-  const withdrawnToday = await getDailyWithdrawalTotal(accountID);
-  if (withdrawnToday + amount > MAX_DAILY_WITHDRAWAL_AMOUNT) {
-    throw new TransactionError(
-      "DAILY_WITHDRAWAL_LIMIT_EXCEEDED",
-      "Withdrawals cannot exceed $400 per UTC calendar day"
-    );
-  }
+    if (res.rowCount === 0) {
+      throw new TransactionError("TRANSACTION_FAILED", "Transaction failed");
+    }
 
-  account.amount = updatedAmount;
-  const res = await query(`
-    UPDATE accounts
-    SET amount = $1 
-    WHERE account_number = $2`,
-    [account.amount, accountID]
-  );
+    await recordTransaction({
+      accountID,
+      type: "withdrawal",
+      amount,
+      balanceBefore,
+      balanceAfter: updatedAmount,
+      ...context,
+    }, executeQuery);
 
-  if (res.rowCount === 0) {
-    throw new TransactionError("TRANSACTION_FAILED", "Transaction failed");
-  }
-
-  await recordTransaction({
-    accountID,
-    type: "withdrawal",
-    amount,
-    balanceBefore,
-    balanceAfter: updatedAmount,
-    ...context,
+    return account;
   });
-
-  return account;
 }
 
 export const deposit = async (
@@ -105,36 +107,38 @@ export const deposit = async (
     );
   }
 
-  const account = await getAccount(accountID);
-  const balanceBefore = account.amount;
+  return withTransaction(async (executeQuery) => {
+    const account = await getAccount(accountID, executeQuery, true);
+    const balanceBefore = account.amount;
 
-  if (account.type === "credit" && account.amount + amount > 0) {
-    throw new TransactionError(
-      "CREDIT_OVERPAYMENT",
-      "Deposit cannot exceed the outstanding credit balance"
+    if (account.type === "credit" && account.amount + amount > 0) {
+      throw new TransactionError(
+        "CREDIT_OVERPAYMENT",
+        "Deposit cannot exceed the outstanding credit balance"
+      );
+    }
+
+    account.amount += amount;
+    const res = await executeQuery(`
+      UPDATE accounts
+      SET amount = $1
+      WHERE account_number = $2`,
+      [account.amount, accountID]
     );
-  }
 
-  account.amount += amount;
-  const res = await query(`
-    UPDATE accounts
-    SET amount = $1 
-    WHERE account_number = $2`,
-    [account.amount, accountID]
-  );
+    if (res.rowCount === 0) {
+      throw new TransactionError("TRANSACTION_FAILED", "Transaction failed");
+    }
 
-  if (res.rowCount === 0) {
-    throw new TransactionError("TRANSACTION_FAILED", "Transaction failed");
-  }
+    await recordTransaction({
+      accountID,
+      type: "deposit",
+      amount,
+      balanceBefore,
+      balanceAfter: account.amount,
+      ...context,
+    }, executeQuery);
 
-  await recordTransaction({
-    accountID,
-    type: "deposit",
-    amount,
-    balanceBefore,
-    balanceAfter: account.amount,
-    ...context,
+    return account;
   });
-
-  return account;
 }

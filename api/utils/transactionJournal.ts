@@ -1,5 +1,5 @@
 import { TransactionType } from '../types';
-import { query } from './db';
+import { query, QueryExecutor } from './db';
 
 interface TransactionRecord {
   accountID: string;
@@ -11,8 +11,11 @@ interface TransactionRecord {
   traceId: string;
 }
 
-export const getDailyWithdrawalTotal = async (accountID: string): Promise<number> => {
-  const result = await query(`
+export const getDailyWithdrawalTotal = async (
+  accountID: string,
+  executeQuery: QueryExecutor = query
+): Promise<number> => {
+  const result = await executeQuery(`
     SELECT COALESCE(SUM(amount), 0) AS total
     FROM transactions
     WHERE account_number = $1
@@ -25,8 +28,11 @@ export const getDailyWithdrawalTotal = async (accountID: string): Promise<number
   return Number(result.rows[0]?.total ?? 0);
 };
 
-export const recordTransaction = async (transaction: TransactionRecord) => {
-  await query(`
+export const recordTransaction = async (
+  transaction: TransactionRecord,
+  executeQuery: QueryExecutor = query
+) => {
+  await executeQuery(`
     INSERT INTO transactions (
       account_number,
       type,
